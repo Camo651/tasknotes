@@ -31,3 +31,7 @@ When a change has user-facing documentation, include a canonical tasknotes.dev l
 ```
 
 -->
+
+## Fixed
+
+- (#2007) Fixed a remaining task creation autocomplete case where a status value containing another status label could leave status fragments in the task title. Thanks to @prepare4robots for the follow-up report.
