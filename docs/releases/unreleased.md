@@ -36,3 +36,4 @@ When a change has user-facing documentation, include a canonical tasknotes.dev l
 
 - (#2007) Fixed a remaining task creation autocomplete case where a status value containing another status label could leave status fragments in the task title. Thanks to @prepare4robots for the follow-up report.
 - (#2031) Fixed quick task creation failing when natural language input created a recurring task with a scheduled time. Thanks to @rdefaccio for reporting this.
+- (#2034) Fixed Advanced Calendar timed events switching to a high-contrast mobile fill when Obsidian is narrowed or split on desktop. Thanks to @RumiaKitinari for reporting this.

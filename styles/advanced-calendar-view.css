@@ -1319,15 +1319,15 @@ body.is-mobile .advanced-calendar-view.advanced-calendar-view--list .fc-scroller
         display: none;
     }
 
-    .advanced-calendar-view .fc-timegrid-event.fc-task-event,
-    .advanced-calendar-view .fc-timegrid-event.fc-ics-event,
-    .advanced-calendar-view .fc-timegrid-event[data-event-type="property-based"] {
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event.fc-task-event,
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event.fc-ics-event,
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event[data-event-type="property-based"] {
         background-color: var(--fc-event-border-color);
     }
 
-    .advanced-calendar-view .fc-timegrid-event.fc-task-event .fc-event-main,
-    .advanced-calendar-view .fc-timegrid-event.fc-ics-event .fc-event-main,
-    .advanced-calendar-view .fc-timegrid-event[data-event-type="property-based"] .fc-event-main {
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event.fc-task-event .fc-event-main,
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event.fc-ics-event .fc-event-main,
+    body.is-mobile .advanced-calendar-view .fc-timegrid-event[data-event-type="property-based"] .fc-event-main {
         color: var(--text-on-accent);
     }
 }
