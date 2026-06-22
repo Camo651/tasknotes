@@ -47,6 +47,7 @@ When a change has user-facing documentation, include a canonical tasknotes.dev l
 - (#2034) Fixed Advanced Calendar timed events switching to a high-contrast mobile fill when Obsidian is narrowed or split on desktop. Thanks to @RumiaKitinari for reporting this.
 - (#2039) Fixed broken images on the Workflows and Calendar Setup documentation pages. Thanks to @chmac for reporting this.
 - (#2045) Fixed custom modal fields assigned to Basic Information not appearing in task creation or edit modals. Thanks to @chmac for reporting this.
+- (#2063) Fixed project autocomplete storing ambiguous project links without the selected note's folder path. Thanks to @chmac for reporting this.
 
 ## Changed
 
