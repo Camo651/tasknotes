@@ -1,6 +1,8 @@
 name: Publish release (Merge main -> release)
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [closed]
     branches: [release]
@@ -9,19 +11,23 @@ permissions:
   contents: write
 
 jobs:
-  publish-release:
+  build:
     if: >-
       ${{
-        github.event.pull_request.merged == true &&
-        github.event.pull_request.head.ref == 'main' &&
-        github.event.pull_request.base.ref == 'release'
+        github.event_name == 'push' ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.merged == true &&
+          github.event.pull_request.head.ref == 'main' &&
+          github.event.pull_request.base.ref == 'release'
+        )
       }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out merged release branch state
+      - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -37,6 +43,7 @@ jobs:
         run: npm run build
 
       - name: Resolve version and tag
+        if: github.event_name == 'pull_request'
         id: version
         run: |
           VERSION="$(node -p "require('./manifest.json').version")"
@@ -44,6 +51,7 @@ jobs:
           echo "tag=v${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Ensure tag does not already exist
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -53,6 +61,7 @@ jobs:
           fi
 
       - name: Create GitHub release
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
