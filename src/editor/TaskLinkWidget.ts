@@ -48,6 +48,11 @@ export class TaskLinkWidget extends WidgetType {
 		wrapper.setAttribute("contenteditable", "false");
 		wrapper.setAttribute("spellcheck", "false");
 		wrapper.setAttribute("data-widget-type", "task-link");
+		// Note: iOS-Safari perf hints (`user-select: none`, `-webkit-user-modify: read-only`)
+		// live on `.tasknotes-plugin.tasknotes-inline-widget` in styles/task-inline-widget.css.
+		// They opt the widget subtree out of WebKit's text-selection and editability walks so
+		// mounting inline widgets inside CodeMirror's contenteditable does not wedge the input
+		// pipeline on Live Preview entry.
 		// Ensure wrapper displays inline to prevent line breaks
 		wrapper.classList.remove(
 			"tn-static-display-block-2a1b75c9",

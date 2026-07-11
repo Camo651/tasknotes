@@ -34,6 +34,6 @@ When a change has user-facing documentation, include a canonical tasknotes.dev l
 
 ## Fixed
 
-- Fixed inline task link widgets freezing Obsidian on iPhone when opening a note that contains TaskNote links.
-  - Inline widgets now opt out of editor text input on touch devices so taps stay responsive.
+- Fixed inline task link widgets freezing Obsidian on iPhone when entering Live Preview on a note that contains TaskNote links.
+  - The widget wrapper is now marked non-editable and opts out of iOS Safari's text-selection and editability walks, so mounting inline widgets no longer stalls the input pipeline in Live Preview.
   - Thanks to @matthagger for reporting.

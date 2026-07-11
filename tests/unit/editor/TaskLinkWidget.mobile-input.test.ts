@@ -48,6 +48,16 @@ describe("TaskLinkWidget mobile input isolation", () => {
 		expect(wrapper.classList.contains("tasknotes-inline-widget")).toBe(true);
 	});
 
+	it("carries the wrapper class that opts the subtree out of iOS Safari text-selection walks", () => {
+		// iOS-Safari perf hints (user-select: none; -webkit-user-modify: read-only)
+		// live on .tasknotes-plugin.tasknotes-inline-widget in styles/task-inline-widget.css.
+		// We assert the class is present so the CSS rule can attach.
+		const wrapper = widget.toDOM(mockView);
+
+		expect(wrapper.classList.contains("tasknotes-plugin")).toBe(true);
+		expect(wrapper.classList.contains("tasknotes-inline-widget")).toBe(true);
+	});
+
 	it.each([
 		"mousedown",
 		"click",

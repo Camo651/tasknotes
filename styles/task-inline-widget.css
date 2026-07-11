@@ -15,6 +15,18 @@
     line-height: inherit;
     /* Prevent wrapper from causing line breaks */
     white-space: normal;
+
+    /*
+     * iOS Safari perf: opt the widget subtree out of WebKit's text-selection and
+     * editability walks. Inline widgets sit inside CodeMirror's contenteditable
+     * region, and without these hints iOS treats each widget as selectable/editable
+     * text and can wedge the input pipeline the moment Live Preview mounts them.
+     * Both properties are inherited by descendants so declaring them on the wrapper
+     * covers the whole card.
+     */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-modify: read-only;
 }
 
 /* =================================================================
