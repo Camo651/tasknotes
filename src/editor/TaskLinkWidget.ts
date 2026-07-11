@@ -5,6 +5,7 @@ import { dispatchTaskUpdate } from "./TaskLinkOverlay";
 import { createTaskCard } from "../ui/TaskCard";
 import { convertInternalToUserProperties } from "../utils/propertyMapping";
 import { createUTCDateFromLocalCalendarDate, formatDateForStorage } from "../utils/dateUtils";
+import { dlog } from "../utils/debugLogger";
 
 export class TaskLinkWidget extends WidgetType {
 	private taskInfo: TaskInfo;
@@ -28,9 +29,12 @@ export class TaskLinkWidget extends WidgetType {
 		this.displayText = displayText;
 		this.targetDate = targetDate;
 		this.targetDateKey = formatDateForStorage(targetDate);
+		dlog("Widget", "ctor", { path: taskInfo.path });
 	}
 
 	toDOM(view: EditorView): HTMLElement {
+		const t0 = performance.now();
+		dlog("Widget", "toDOM:start", { path: this.taskInfo.path });
 		// Get visible properties from settings (stores internal FieldMapping keys)
 		// Convert to user-configured frontmatter property names before passing to TaskCard
 		const internalProperties = this.plugin.settings.inlineVisibleProperties || [
@@ -68,10 +72,16 @@ export class TaskLinkWidget extends WidgetType {
 		wrapper.classList.add("tn-static-vertical-align-baseline-657d9c46");
 
 		// Use createTaskCard with inline layout
+		const tCard = performance.now();
 		const card = createTaskCard(this.taskInfo, this.plugin, visibleProperties, {
 			layout: "inline",
 			targetDate: this.targetDate,
 			displayText: this.displayText,
+		});
+		dlog("Widget", "toDOM:createTaskCard:done", {
+			path: this.taskInfo.path,
+			elapsedMs: Math.round(performance.now() - tCard),
+			domNodeCount: card.getElementsByTagName("*").length,
 		});
 
 		// Add card to wrapper
@@ -83,6 +93,7 @@ export class TaskLinkWidget extends WidgetType {
 		// Trigger update after status changes (for editor sync)
 		// Listen for task updates within the card
 		card.addEventListener("tasknotes:task-updated", () => {
+			dlog("Widget", "card:tasknotes:task-updated", { path: this.taskInfo.path });
 			window.setTimeout(() => {
 				if (view && typeof view.dispatch === "function") {
 					dispatchTaskUpdate(view, this.taskInfo.path);
@@ -90,6 +101,11 @@ export class TaskLinkWidget extends WidgetType {
 			}, 50);
 		});
 
+		dlog("Widget", "toDOM:end", {
+			path: this.taskInfo.path,
+			totalElapsedMs: Math.round(performance.now() - t0),
+			wrapperNodeCount: wrapper.getElementsByTagName("*").length,
+		});
 		return wrapper;
 	}
 
@@ -98,9 +114,10 @@ export class TaskLinkWidget extends WidgetType {
 	 */
 	eq(other: WidgetType): boolean {
 		if (!(other instanceof TaskLinkWidget)) {
+			dlog("Widget", "eq:type-mismatch", { path: this.taskInfo.path });
 			return false;
 		}
-		return (
+		const equal =
 			this.taskInfo.path === other.taskInfo.path &&
 			this.taskInfo.status === other.taskInfo.status &&
 			this.taskInfo.title === other.taskInfo.title &&
@@ -115,8 +132,9 @@ export class TaskLinkWidget extends WidgetType {
 				JSON.stringify(other.taskInfo.complete_instances) &&
 			JSON.stringify(this.taskInfo.skipped_instances) ===
 				JSON.stringify(other.taskInfo.skipped_instances) &&
-			this.taskInfo.dateModified === other.taskInfo.dateModified
-		);
+			this.taskInfo.dateModified === other.taskInfo.dateModified;
+		dlog("Widget", "eq", { path: this.taskInfo.path, equal });
+		return equal;
 	}
 
 	/**
@@ -136,8 +154,10 @@ export class TaskLinkWidget extends WidgetType {
 			case "pointerup":
 			case "touchstart":
 			case "touchend":
+				dlog("Widget", "ignoreEvent:true", { type: event.type });
 				return true;
 		}
+		dlog("Widget", "ignoreEvent:false", { type: event.type });
 		return false;
 	}
 

@@ -18,6 +18,7 @@ import {
 import { TaskLinkDetectionService } from "../services/TaskLinkDetectionService";
 import { TaskLinkWidget } from "./TaskLinkWidget";
 import { createTaskNotesLogger } from "../utils/tasknotesLogger";
+import { dlog } from "../utils/debugLogger";
 import {
 	formatTaskLinkSubpathDisplayText,
 	resolveTaskLinkDisplayText,
@@ -49,12 +50,15 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 			private view: EditorView;
 
 			constructor(view: EditorView) {
+				dlog("Overlay", "viewplugin:construct");
 				this.view = view;
 				this.decorations = this.buildDecorations(view);
 				this.setupEventListeners();
+				dlog("Overlay", "viewplugin:construct:done");
 			}
 
 			destroy() {
+				dlog("Overlay", "viewplugin:destroy");
 				// Clean up event listeners
 				this.eventListeners.forEach((listener) => {
 					plugin.emitter.offref(listener);
@@ -63,18 +67,22 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 			}
 
 			setupEventListeners() {
+				dlog("Overlay", "setupEventListeners");
 				// Listen for data changes that might affect task link widgets
 				const dataChangeListener = plugin.emitter.on(EVENT_DATA_CHANGED, () => {
+					dlog("Overlay", "emitter:EVENT_DATA_CHANGED");
 					this.refreshDecorations();
 				});
 
 				const taskUpdateListener = plugin.emitter.on(EVENT_TASK_UPDATED, () => {
+					dlog("Overlay", "emitter:EVENT_TASK_UPDATED");
 					this.refreshDecorations();
 				});
 
 				const taskDeleteListener = plugin.emitter.on(
 					EVENT_TASK_DELETED,
 					(data?: { path?: string }) => {
+						dlog("Overlay", "emitter:EVENT_TASK_DELETED", { path: data?.path });
 						if (data?.path) {
 							lastKnownWidgets.delete(data.path);
 						}
@@ -83,12 +91,14 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 				);
 
 				const dateChangeListener = plugin.emitter.on(EVENT_DATE_CHANGED, () => {
+					dlog("Overlay", "emitter:EVENT_DATE_CHANGED");
 					lastKnownWidgets.clear();
 					this.refreshDecorations();
 				});
 
 				// Listen for settings changes
 				const settingsChangeListener = plugin.emitter.on("settings-changed", () => {
+					dlog("Overlay", "emitter:settings-changed");
 					this.refreshDecorations();
 				});
 
@@ -102,10 +112,14 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 			}
 
 			refreshDecorations() {
+				dlog("Overlay", "refreshDecorations:enqueue");
 				// Dispatch an update effect to trigger decoration rebuild
 				if (this.view && typeof this.view.dispatch === "function") {
 					queueMicrotask(() => {
 						try {
+							dlog("Overlay", "refreshDecorations:dispatch", {
+								activeWidgetCount: activeWidgets.size,
+							});
 							// Clear all widgets to force fresh recreation with updated data
 							activeWidgets.clear();
 
@@ -124,11 +138,20 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 			}
 
 			update(update: ViewUpdate) {
+				dlog("Overlay", "update:enter", {
+					docChanged: update.docChanged,
+					selectionSet: update.selectionSet,
+					viewportChanged: update.viewportChanged,
+					geometryChanged: update.geometryChanged,
+					focusChanged: update.focusChanged,
+					transactions: update.transactions.length,
+				});
 				// Store the updated view reference
 				this.view = update.view;
 
 				// Only process if overlay is enabled in settings
 				if (!plugin?.settings?.enableTaskLinkOverlay) {
+					dlog("Overlay", "update:skip-disabled");
 					this.decorations = Decoration.none;
 					return;
 				}
@@ -137,6 +160,7 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 				try {
 					const isLivePreview = update.state.field(editorLivePreviewField);
 					if (!isLivePreview) {
+						dlog("Overlay", "update:skip-not-live-preview");
 						this.decorations = Decoration.none;
 						return;
 					}
@@ -152,6 +176,13 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 
 				// Rebuild decorations on document changes, task updates, or selection changes
 				if (update.docChanged || update.selectionSet || hasTaskUpdateEffect) {
+					dlog("Overlay", "update:rebuild", {
+						reason: update.docChanged
+							? "docChanged"
+							: update.selectionSet
+								? "selectionSet"
+								: "taskUpdateEffect",
+					});
 					// Clear active widgets cache on task updates to ensure fresh widgets are created
 					if (hasTaskUpdateEffect) {
 						// Get the specific task path that was updated
@@ -176,6 +207,7 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 			}
 
 			buildDecorations(view: EditorView): DecorationSet {
+				const t0 = performance.now();
 				try {
 					if (!plugin?.settings?.enableTaskLinkOverlay) {
 						return Decoration.none;
@@ -191,13 +223,23 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 					const editorInfo = view.state.field(editorInfoField, false);
 					const currentFile = editorInfo?.file?.path;
 
-					return buildTaskLinkDecorations(
+					dlog("Overlay", "buildDecorations:start", {
+						file: currentFile,
+						docLength: view.state.doc.length,
+						activeWidgetCount: activeWidgets.size,
+					});
+					const result = buildTaskLinkDecorations(
 						view.state,
 						plugin,
 						activeWidgets,
 						currentFile,
 						lastKnownWidgets
 					);
+					dlog("Overlay", "buildDecorations:end", {
+						elapsedMs: Math.round(performance.now() - t0),
+						activeWidgetCount: activeWidgets.size,
+					});
+					return result;
 				} catch (error) {
 					tasknotesLogger.error("Error building task link decorations:", {
 						category: "persistence",
@@ -279,7 +321,13 @@ export function buildTaskLinkDecorations(
 		// Get cursor position to check if it overlaps with any wikilinks
 		const cursorPos = state.selection?.main.head;
 
+		const tFind = performance.now();
 		const links = detectionService.findWikilinks(text);
+		dlog("Overlay", "buildTaskLinkDecorations:findWikilinks", {
+			count: Array.isArray(links) ? links.length : "n/a",
+			elapsedMs: Math.round(performance.now() - tFind),
+			currentFile,
+		});
 
 		// Validate links result
 		if (!Array.isArray(links)) {
@@ -651,6 +699,7 @@ export { taskUpdateEffect };
 
 // Helper function to dispatch task update effects to an editor view
 export function dispatchTaskUpdate(view: EditorView, taskPath?: string): void {
+	dlog("Overlay", "dispatchTaskUpdate:call", { taskPath });
 	// Validate that view is a proper EditorView with dispatch method
 	if (!view || typeof view.dispatch !== "function") {
 		tasknotesLogger.warn("Invalid EditorView passed to dispatchTaskUpdate:", {

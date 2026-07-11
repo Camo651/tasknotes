@@ -19,6 +19,7 @@ import {
 	appHasDailyNotesPluginLoaded,
 } from "obsidian-daily-notes-interface";
 import { TaskNotesSettings } from "./types/settings";
+import { initDebugLogger, disposeDebugLogger, dlog } from "./utils/debugLogger";
 import { generateBasesFileTemplate } from "./templates/defaultBasesFiles";
 import {
 	MINI_CALENDAR_VIEW_TYPE,
@@ -273,6 +274,8 @@ export default class TaskNotesPlugin extends Plugin {
 	}
 
 	async onload() {
+		initDebugLogger(this.app);
+		dlog("main", "onload:start");
 		// Create the promise and store its resolver
 		this.readyPromise = new Promise((resolve) => {
 			this.resolveReady = resolve;
@@ -666,10 +669,12 @@ export default class TaskNotesPlugin extends Plugin {
 	}
 
 	onunload() {
+		dlog("main", "onunload");
 		this.emitter?.trigger(TASKNOTES_RUNTIME_LIFECYCLE_RAW_EVENTS.unloading, {
 			timestamp: new Date().toISOString(),
 		});
 		void cleanupPluginRuntime(this);
+		disposeDebugLogger();
 	}
 
 	private async pluginDataFileExists(): Promise<boolean> {
