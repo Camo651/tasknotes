@@ -36,6 +36,84 @@ interface ParsedTaskLink {
 	hasExplicitAlias: boolean;
 }
 
+/**
+ * Diagnostic helper: on each ViewUpdate, log the dimensions of `.cm-content`
+ * and `.cm-scroller` iff they have changed by more than a fraction of a pixel
+ * since the last logged sample. Logs at most 30 samples per plugin instance so
+ * the log stays readable. Used to see whether the CodeMirror content area is
+ * genuinely resizing frame-to-frame (which would explain a sustained
+ * `geometryChanged` loop) or whether the loop is measurement noise inside
+ * CodeMirror alone.
+ */
+interface OverlayInstanceState {
+	__tnLastContentW?: number;
+	__tnLastContentH?: number;
+	__tnLastScrollerW?: number;
+	__tnLastScrollerH?: number;
+	__tnGeomLogs?: number;
+	__tnGeomSuppressed?: number;
+}
+
+const OVERLAY_GEOM_MAX_LOGS = 30;
+const OVERLAY_GEOM_TOLERANCE_PX = 0.5;
+
+function logContentGeometryOnChange(plugin: object, update: ViewUpdate): void {
+	if (!update.geometryChanged) {
+		return;
+	}
+	const state = plugin as OverlayInstanceState;
+	if ((state.__tnGeomLogs ?? 0) >= OVERLAY_GEOM_MAX_LOGS) {
+		state.__tnGeomSuppressed = (state.__tnGeomSuppressed ?? 0) + 1;
+		if ((state.__tnGeomSuppressed ?? 0) % 120 === 0) {
+			dlog("OverlayGeom", "suppressed-batch", {
+				suppressedSoFar: state.__tnGeomSuppressed,
+			});
+		}
+		return;
+	}
+	try {
+		const contentDOM = update.view.contentDOM as HTMLElement | undefined;
+		const scrollDOM = update.view.scrollDOM as HTMLElement | undefined;
+		if (!contentDOM || !scrollDOM) {
+			return;
+		}
+		const contentRect = contentDOM.getBoundingClientRect();
+		const scrollerRect = scrollDOM.getBoundingClientRect();
+		const lastW = state.__tnLastContentW ?? -1;
+		const lastH = state.__tnLastContentH ?? -1;
+		const lastSW = state.__tnLastScrollerW ?? -1;
+		const lastSH = state.__tnLastScrollerH ?? -1;
+		const dW = Math.abs(contentRect.width - lastW);
+		const dH = Math.abs(contentRect.height - lastH);
+		const dSW = Math.abs(scrollerRect.width - lastSW);
+		const dSH = Math.abs(scrollerRect.height - lastSH);
+		if (
+			dW < OVERLAY_GEOM_TOLERANCE_PX &&
+			dH < OVERLAY_GEOM_TOLERANCE_PX &&
+			dSW < OVERLAY_GEOM_TOLERANCE_PX &&
+			dSH < OVERLAY_GEOM_TOLERANCE_PX &&
+			lastW >= 0
+		) {
+			return;
+		}
+		state.__tnLastContentW = contentRect.width;
+		state.__tnLastContentH = contentRect.height;
+		state.__tnLastScrollerW = scrollerRect.width;
+		state.__tnLastScrollerH = scrollerRect.height;
+		state.__tnGeomLogs = (state.__tnGeomLogs ?? 0) + 1;
+		dlog("OverlayGeom", "content-changed", {
+			contentW: Math.round(contentRect.width * 1000) / 1000,
+			contentH: Math.round(contentRect.height * 1000) / 1000,
+			scrollerW: Math.round(scrollerRect.width * 1000) / 1000,
+			scrollerH: Math.round(scrollerRect.height * 1000) / 1000,
+			dW: Math.round(dW * 1000) / 1000,
+			dH: Math.round(dH * 1000) / 1000,
+		});
+	} catch {
+		// Ignore diagnostic errors; they must never affect functional behavior.
+	}
+}
+
 // Create a ViewPlugin factory that takes the plugin as a parameter
 export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 	// Track widget instances for updates
@@ -146,6 +224,7 @@ export function createTaskLinkViewPlugin(plugin: TaskNotesPlugin) {
 					focusChanged: update.focusChanged,
 					transactions: update.transactions.length,
 				});
+				logContentGeometryOnChange(this, update);
 				// Store the updated view reference
 				this.view = update.view;
 

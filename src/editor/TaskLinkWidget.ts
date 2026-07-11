@@ -7,6 +7,86 @@ import { convertInternalToUserProperties } from "../utils/propertyMapping";
 import { createUTCDateFromLocalCalendarDate, formatDateForStorage } from "../utils/dateUtils";
 import { dlog } from "../utils/debugLogger";
 
+/**
+ * Diagnostic instrumentation for the iOS-Safari geometry loop.
+ *
+ * Attaches a ResizeObserver and MutationObserver to each mounted widget wrapper.
+ * If the widget's own DOM is oscillating in size or being mutated frame-to-frame
+ * we will see it in `debug.md`. If it is stable, the loop is being driven from
+ * outside the widget subtree. Each widget logs at most 20 resize / mutation
+ * events so the log stays readable.
+ */
+const DIAGNOSTIC_MAX_LOGS = 20;
+function attachDiagnosticObservers(wrapper: HTMLElement, path: string): void {
+	if (typeof ResizeObserver === "undefined" || typeof MutationObserver === "undefined") {
+		return;
+	}
+	let resizeLogs = 0;
+	let resizeSuppressed = 0;
+	let lastResizeLog = 0;
+	const resizeObserver = new ResizeObserver((entries) => {
+		for (const entry of entries) {
+			if (resizeLogs >= DIAGNOSTIC_MAX_LOGS) {
+				resizeSuppressed++;
+				if (resizeSuppressed % 60 === 0) {
+					dlog("WidgetObs", "resize:suppressed-batch", {
+						path,
+						suppressedSoFar: resizeSuppressed,
+					});
+				}
+				continue;
+			}
+			const now = performance.now();
+			const dt = lastResizeLog === 0 ? 0 : Math.round(now - lastResizeLog);
+			lastResizeLog = now;
+			const cr = entry.contentRect;
+			dlog("WidgetObs", "resize", {
+				path,
+				w: Math.round(cr.width * 1000) / 1000,
+				h: Math.round(cr.height * 1000) / 1000,
+				dtMs: dt,
+			});
+			resizeLogs++;
+		}
+	});
+	resizeObserver.observe(wrapper);
+
+	let mutationLogs = 0;
+	let mutationSuppressed = 0;
+	const mutationObserver = new MutationObserver((records) => {
+		for (const record of records) {
+			if (mutationLogs >= DIAGNOSTIC_MAX_LOGS) {
+				mutationSuppressed++;
+				if (mutationSuppressed % 60 === 0) {
+					dlog("WidgetObs", "mutation:suppressed-batch", {
+						path,
+						suppressedSoFar: mutationSuppressed,
+					});
+				}
+				continue;
+			}
+			dlog("WidgetObs", "mutation", {
+				path,
+				type: record.type,
+				attr: record.attributeName ?? undefined,
+				added: record.addedNodes.length,
+				removed: record.removedNodes.length,
+				target:
+					(record.target as Element).tagName?.toLowerCase() +
+					"." +
+					((record.target as Element).className || "").split(" ").slice(0, 2).join("."),
+			});
+			mutationLogs++;
+		}
+	});
+	mutationObserver.observe(wrapper, {
+		attributes: true,
+		childList: true,
+		subtree: true,
+		characterData: true,
+	});
+}
+
 export class TaskLinkWidget extends WidgetType {
 	private taskInfo: TaskInfo;
 	private plugin: TaskNotesPlugin;
@@ -106,6 +186,9 @@ export class TaskLinkWidget extends WidgetType {
 			totalElapsedMs: Math.round(performance.now() - t0),
 			wrapperNodeCount: wrapper.getElementsByTagName("*").length,
 		});
+
+		attachDiagnosticObservers(wrapper, this.taskInfo.path);
+
 		return wrapper;
 	}
 
