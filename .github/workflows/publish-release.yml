@@ -36,7 +36,11 @@ jobs:
         run: |
           npm version patch --no-git-tag-version --ignore-scripts
           node version-bump.mjs
-          VERSION="$(node -p "require('./manifest.json').version")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$(node -p "require('./manifest.json').version")" != "${VERSION}" ]; then
+            echo "manifest.json version does not match package.json after version-bump.mjs"
+            exit 1
+          fi
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Build release artifacts
