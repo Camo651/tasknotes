@@ -45,6 +45,9 @@ export class TaskLinkWidget extends WidgetType {
 		// Create a wrapper span with the tasknotes-plugin class for CSS scoping
 		const wrapper = activeDocument.createElement("span");
 		wrapper.className = "tasknotes-plugin tasknotes-inline-widget";
+		wrapper.setAttribute("contenteditable", "false");
+		wrapper.setAttribute("spellcheck", "false");
+		wrapper.setAttribute("data-widget-type", "task-link");
 		// Ensure wrapper displays inline to prevent line breaks
 		wrapper.classList.remove(
 			"tn-static-display-block-2a1b75c9",
@@ -116,10 +119,19 @@ export class TaskLinkWidget extends WidgetType {
 	 * when clicking interactive elements like status dot
 	 */
 	ignoreEvent(event: Event): boolean {
-		// Ignore mouse events to prevent cursor from moving into widget
-		// This keeps the widget rendered while interacting with it
-		if (event.type === "mousedown" || event.type === "click") {
-			return true;
+		// Ignore pointer/touch events so CodeMirror does not treat widget taps as editor input.
+		// This keeps the widget rendered while interacting with it on desktop and iOS.
+		switch (event.type) {
+			case "mousedown":
+			case "click":
+			case "auxclick":
+			case "dblclick":
+			case "contextmenu":
+			case "pointerdown":
+			case "pointerup":
+			case "touchstart":
+			case "touchend":
+				return true;
 		}
 		return false;
 	}
