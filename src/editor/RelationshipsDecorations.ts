@@ -66,6 +66,7 @@ import { FilterUtils } from "../utils/FilterUtils";
 import { collectCacheTags } from "../utils/tagExtraction";
 import { getProjectPropertyFilter, matchesProjectProperty } from "../utils/projectFilterUtils";
 import { createTaskNotesLogger } from "../utils/tasknotesLogger";
+import { dlog } from "../utils/debugLogger";
 
 const tasknotesLogger = createTaskNotesLogger({ tag: "Editor/RelationshipsDecorations" });
 
@@ -192,9 +193,25 @@ function getRenderedLinesBottom(lines: HTMLElement[]): number | null {
 	return bottom;
 }
 
-export function applyRelationshipsBottomOffset(container: HTMLElement, widget: HTMLElement): void {
-	widget.style.removeProperty("--tn-relationships-widget-margin-top");
+/**
+ * Sub-pixel tolerance when comparing the newly-computed spacer gap to the previously
+ * applied one. Anything within this range is treated as "no change" so we skip DOM
+ * writes. This is essential on iOS Safari: our own style write can nudge layout enough
+ * to fire another `geometryChanged`, and without this early-out the resulting rAF loop
+ * wedges the editor when many inline widgets are present.
+ */
+const RELATIONSHIPS_OFFSET_TOLERANCE_PX = 2;
 
+interface RelationshipsWidgetOffsetState extends HTMLElement {
+	/**
+	 * Last spacer gap value applied to this widget in pixels. Used to short-circuit
+	 * repeated `applyRelationshipsBottomOffset` calls that would otherwise create a
+	 * layout / geometryChanged feedback loop with CodeMirror.
+	 */
+	__tnLastSpacerGap?: number;
+}
+
+export function applyRelationshipsBottomOffset(container: HTMLElement, widget: HTMLElement): void {
 	const cmContent = container.querySelector<HTMLElement>(".cm-content");
 	if (!cmContent) {
 		return;
@@ -216,11 +233,32 @@ export function applyRelationshipsBottomOffset(container: HTMLElement, widget: H
 					contentBottom
 			)
 	);
+
+	// Skip the DOM write when the desired value is effectively unchanged. This breaks
+	// the rAF geometryChanged loop the moment layout stabilizes.
+	const widgetWithState = widget as RelationshipsWidgetOffsetState;
+	const previousSpacerGap = widgetWithState.__tnLastSpacerGap;
+	if (
+		previousSpacerGap !== undefined &&
+		Math.abs(previousSpacerGap - spacerGap) <= RELATIONSHIPS_OFFSET_TOLERANCE_PX
+	) {
+		dlog("Rel", "applyOffset:skip", { spacerGap, previousSpacerGap });
+		return;
+	}
+
 	if (spacerGap > 0) {
+		// getComputedStyle() reflects whatever we may have set earlier, so remove our
+		// previous override first to recover the CSS-default margin-top before reading.
+		widget.style.removeProperty("--tn-relationships-widget-margin-top");
 		const defaultMarginTop = getRelationshipsWidgetDefaultMarginTop(widget);
 		const adjustedMarginTop = Math.round(defaultMarginTop - spacerGap);
 		widget.style.setProperty("--tn-relationships-widget-margin-top", `${adjustedMarginTop}px`);
+	} else {
+		widget.style.removeProperty("--tn-relationships-widget-margin-top");
 	}
+
+	dlog("Rel", "applyOffset:applied", { spacerGap, previousSpacerGap });
+	widgetWithState.__tnLastSpacerGap = spacerGap;
 }
 
 export function insertRelationshipsWidgetAtBottom(

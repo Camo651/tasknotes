@@ -156,4 +156,45 @@ describe("Issue #1329: relationships widget bottom placement", () => {
 		expect(widget.parentElement).toBe(sizer);
 		expect(sizer.lastElementChild).toBe(widget);
 	});
+
+	it("skips DOM writes when repeated calls produce the same spacer gap", () => {
+		// Regression: on iOS Live Preview with inline task-link widgets present,
+		// scheduleBottomOffsetRefresh fires every animation frame. Without this
+		// short-circuit, applyRelationshipsBottomOffset re-writes the widget's
+		// custom property each frame and creates a rAF-cadence geometryChanged
+		// feedback loop that wedges the editor.
+		const sizer = el("cm-sizer");
+		const contentContainer = el("cm-contentContainer");
+		const cmContent = el("cm-content cm-lineWrapping");
+		const lastLine = el("cm-line");
+		const widget = el("tasknotes-relationships-widget");
+		widget.style.marginTop = "24px";
+
+		cmContent.append(lastLine);
+		contentContainer.append(cmContent);
+		sizer.append(contentContainer, widget);
+
+		Object.defineProperty(contentContainer, "getBoundingClientRect", {
+			value: () => ({ bottom: 224 }),
+		});
+		Object.defineProperty(lastLine, "getBoundingClientRect", {
+			value: () => ({ bottom: 100 }),
+		});
+
+		applyRelationshipsBottomOffset(sizer, widget);
+		expect(widget.style.getPropertyValue("--tn-relationships-widget-margin-top")).toBe(
+			"-100px"
+		);
+
+		// Simulate CodeMirror's rAF-cadence geometry callbacks — layout is stable so
+		// the desired output is unchanged. Any DOM writes here would re-enter the
+		// geometryChanged loop we are guarding against.
+		const setPropertySpy = jest.spyOn(widget.style, "setProperty");
+		const removePropertySpy = jest.spyOn(widget.style, "removeProperty");
+		for (let i = 0; i < 50; i++) {
+			applyRelationshipsBottomOffset(sizer, widget);
+		}
+		expect(setPropertySpy).not.toHaveBeenCalled();
+		expect(removePropertySpy).not.toHaveBeenCalled();
+	});
 });
