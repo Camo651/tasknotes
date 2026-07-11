@@ -1523,7 +1523,19 @@ body.is-mobile .tasknotes-plugin .task-card:not(.task-card--layout-inline):not(.
     vertical-align: baseline;
 }
 
-/* Metadata in inline mode - stays on same line, scrolls if needed */
+/* Metadata in inline mode - stays on same line, clips if needed.
+ *
+ * `overflow-x: hidden` (not `auto`) is deliberate. This element lives inside
+ * CodeMirror's contenteditable region. On WebKit (iOS Safari especially), an
+ * `overflow: auto` inline-level box whose content width sits at its
+ * max-width/flex bound triggers a sub-pixel scrollbar-visibility decision on
+ * every layout pass. The decision flip re-sizes the box by a fraction of a
+ * pixel, which fires CodeMirror's ResizeObserver on `.cm-content`, which
+ * re-measures, which flips the decision back. With multiple inline widgets on
+ * one page the oscillators feed each other at rAF cadence and the main thread
+ * cannot process input events → the editor freezes on iPhone. Using
+ * `overflow-x: hidden` removes the scrollbar-visibility decision entirely.
+ */
 .tasknotes-plugin .task-card--layout-inline .task-card__metadata {
     display: inline-block;
     font-size: var(--tn-font-size-sm);
@@ -1535,7 +1547,7 @@ body.is-mobile .tasknotes-plugin .task-card:not(.task-card--layout-inline):not(.
     white-space: nowrap;
     width: fit-content;
     max-width: 100%;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: hidden;
     scrollbar-width: none;
 }
@@ -1679,7 +1691,9 @@ body.is-mobile .tasknotes-plugin .task-card--layout-inline .task-card__metadata 
     min-width: 0;
     max-width: min(52vw, 24em);
     margin-left: 0.25em;
-    overflow-x: auto;
+    /* See note on the base rule: `overflow-x: hidden` prevents an iOS-Safari
+     * scrollbar-visibility oscillator inside CodeMirror's contenteditable. */
+    overflow-x: hidden;
     overflow-y: hidden;
     scrollbar-width: none;
     white-space: nowrap;
